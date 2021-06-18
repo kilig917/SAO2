@@ -105,19 +105,21 @@ class Formula(object):
         return maxx
 
     def wu(self, s1, s2, val):
-        """Concept Hierarchy Calculation"""
+        """Wu & Palmer's"""
         sim_wu = s1.wup_similarity(s2)
         if sim_wu is not None and sim_wu > val:
             return sim_wu
         return -1
 
     def lin(self, s1, s2, val):
+        """Lin's""" 
         sim_lin = s1.lin_similarity(s2, self.semcor_ic)
         if sim_lin is not None and sim_lin > val:
             return sim_lin
         return -1
 
     def leacock(self, s1, s2, val):
+        """ Leacock & Chodorow's"""
         sim1_leacock = s1.lch_similarity(s1)
         sim2_leacock = s2.lch_similarity(s2)
         sim_leacock = s1.lch_similarity(s2) / max(sim1_leacock, sim2_leacock)
@@ -126,6 +128,7 @@ class Formula(object):
         return val
 
     def resnik(self, s1, s2, val):
+        """Resnik's"""
         sim1_resnik = s1.res_similarity(s1, self.brown_ic)
         sim2_resnik = s2.res_similarity(s2, self.brown_ic)
         sim_resnik = s1.res_similarity(s2, self.brown_ic) / max(sim1_resnik, sim2_resnik)
@@ -134,6 +137,7 @@ class Formula(object):
         return val
 
     def jiang(self, s1, s2, val):
+        """Jiang & Conrath's"""
         sim1_jiang = s1.jcn_similarity(s1, self.brown_ic)
         sim2_jiang = s2.jcn_similarity(s2, self.brown_ic)
         sim_jiang = s1.jcn_similarity(s2, self.brown_ic) / max(sim1_jiang, sim2_jiang)

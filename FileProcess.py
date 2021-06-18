@@ -58,3 +58,20 @@ class FileProcess(object):
             line = f.readline()
         return vector, vsm_ind
 
+    def to_SAO(self, sentence):
+        sentence = sentence.replace('^_^', '').replace(';', '')
+        words = sentence.split(')')
+        if '' in words:
+            words.remove('')
+        for i in range(len(words)):
+            words[i] += ')'
+        return words
+
+    def to_word(self, SAO):
+        word = SAO.split(', ')
+        for i in range(len(word)):
+            word[i] = word[i].replace('(', '').replace(')', '')
+        if '' in word:
+            word.remove('')
+        return word
+

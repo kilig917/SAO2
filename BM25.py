@@ -69,34 +69,3 @@ class BM25(object):
             score = self.get_score(query, index)
             scores.append(score)
         return scores
-
-
-def to_words_knowledge(arr):
-    new_arr = []
-    for sentence in arr:
-        words = sentence.replace(' ', '$')
-        words = words.split(')')
-        new_words = []
-        for word in words:
-            temp_words = word[1:].split('#')
-            if '' in temp_words:
-                temp_words.remove('')
-            new_words += temp_words
-        new_arr.append(new_words)
-    return new_arr
-
-
-def to_words_SAO(arr):
-    new_arr = []
-    for sentence in arr:
-        words = sentence.split(')')
-        new_words = []
-        for word in words:
-            temp_words = word[1:].split(', ')
-            if '' in temp_words:
-                temp_words.remove('')
-            # for i, w in enumerate(temp_words):
-            #     temp_words[i] = w.replace(' ', '$')
-            new_words += temp_words
-        new_arr.append(new_words)
-    return new_arr

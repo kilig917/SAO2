@@ -12,8 +12,6 @@ import re
 import time
 import numpy as np
 from pandas.core.frame import DataFrame
-from nltk.corpus import wordnet
-from nltk.corpus import wordnet_ic
 from BM25 import BM25
 from FileProcess import FileProcess
 from Formula import Formula
@@ -27,110 +25,10 @@ patent = "english_processed.txt"
 print("running SAO.py")
 
 
-def IDF(patents):
-    word_IDF = {}  # word - [patent]
-    patent_ID = []
-    for input_patent_SAO in patents:
-        for i in input_patent_SAO:
-            if i not in patent_ID:
-                patent_ID.append(i)
-            text = re.split(';', input_patent_SAO[i])
-            for n, j in enumerate(text):
-                if j[:3] == '^_^':
-                    j = j[3:]
-                # split SAO
-                SAO = j.split(', ')
-                word = (SAO[0][1:], SAO[1], SAO[2][:-1])
-                # IDF
-                if word in word_IDF:
-                    if i not in word_IDF[word]:
-                        word_IDF[word].append(i)
-                else:
-                    word_IDF[word] = [i]
-    return word_IDF, len(patent_ID)
 
 
-def to_SAO(sentence):
-    sentence = sentence.replace('^_^', '').replace(';', '')
-    words = sentence.split(')')
-    if '' in words:
-        words.remove('')
-    for i in range(len(words)):
-        words[i] += ')'
-    return words
 
 
-def to_word(SAO):
-    word = SAO.split(', ')
-    for i in range(len(word)):
-        word[i] = word[i].replace('(', '').replace(')', '')
-    if '' in word:
-        word.remove('')
-    return word
-
-
-def bm25(input_patent_SAO):
-    values = input_patent_SAO.values()
-    SAOs = to_SAO(list(values)[0])
-    test = []
-    for SAO in SAOs:
-        test.append(to_word(SAO))
-    s = BM25(test)
-    input_s = to_SAO(list(values)[1])
-    result = []
-    for i in input_s:
-        sim = s.similarity((to_word(i)))
-        result.append(sim)
-    return result, np.mean(result)
-
-
-def KM(vec):
-    cluster = KMeans(n_clusters=2).fit(vec)
-    return cluster.labels_
-
-
-def SC(vec):
-    cluster = SpectralClustering(n_clusters=2, assign_labels='discretize').fit(vec)
-    return cluster.labels_
-
-
-def SAO_graph(S, A, O):
-    g = graph()
-    g.add_nodes(S)
-    g.add_nodes(A)
-    g.add_nodes(O)
-    for i in range(len(S)):
-        if S[i] != '' and O[i] != '':
-            if A[i] != '':
-                g.add_edge((S[i], A[i]))
-                g.add_edge((A[i], O[i]))
-                g.add_edge((S[i], O[i]))
-        elif S[i] != '':
-            if A[i] != '':
-                g.add_edge((S[i], A[i]))
-        elif O[i] != '':
-            if A[i] != '':
-                g.add_edge((A[i], O[i]))
-    degrees = []
-    for i in range(len(S)):
-        degrees.append(len(g.neighbors(S[i])) + len(g.neighbors(A[i])) + len(g.neighbors(O[i])))
-    degrees = np.array(degrees)
-    degrees = list(degrees / max(degrees))
-
-    return degrees
-
-
-def tf_idf(ind, SAOlist, ID, TF):
-    if SAOlist[0][ind] == ' ':
-        word = (SAOlist[1][ind], SAOlist[2][ind])
-    else:
-        word = (SAOlist[0][ind], SAOlist[1][ind], SAOlist[2][ind])
-    tf = TF[ID][word] / len(TF[ID])
-    idf = np.log(doc_num / (len(IDF_count[word]) + 1))
-    if idf == 0.0:
-        idf = 0.0001
-    tfidf = tf * idf
-    return tfidf
 
 
 # id - {S, O, A lists}
@@ -270,10 +168,10 @@ def new_all(input_patent_SAO):
                         v2 = vec[word2]
                         vectorF = Formula(v1, v2, 'v')
                         wordF = Formula(word1, word2, 'w')
-                        d_pearson = vectorF.pearson()
-                        d_spearman = vectorF.spearman()
-                        d = [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(), d_pearson,
-                             d_spearman, vectorF.arcosine(v1, v2)] + hierarchy(word1, word2)
+                        hierarchyF = Formula(word1, word2, 'h')
+                        d = [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(),
+                             vectorF.pearson(), vectorF.spearman(), vectorF.arcosine(v1, v2)]\
+                            + hierarchyF.hierarchy(word1, word2)
                     else:
                         d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
                     if i == 0 and j == 0:
@@ -301,14 +199,11 @@ def new_all(input_patent_SAO):
                 else:
                     v1 = vec[word1]
                     v2 = vec[word2]
-                    d_pearson = pearson(v1, v2)
-                    d_spearman = spearman_(v1, v2)
-                    if np.isnan(d_pearson):
-                        d_pearson = 1.0
-                    if np.isnan(d_spearman):
-                        d_spearman = 1.0
-                    d += [dice_coefficient(word1, word2), in_ind(word1, word2), j_cal(word1, word2), euclidean_distance(v1, v2), d_pearson,
-                          d_spearman, a_cos(v1, v2)] + hierarchy(word1, word2)
+                    vectorF = Formula(v1, v2, 'v')
+                    wordF = Formula(word1, word2, 'w')
+                    hierarchyF = Formula(word1, word2, 'h')
+                    d += [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(), vectorF.pearson(),
+                          vectorF.spearman(), vectorF.arcosine(v1, v2)] + hierarchyF.hierarchy(word1, word2)
             else:
                 d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
             for index in range(len(methods)):
@@ -524,7 +419,6 @@ input_p = FileProcess(in_file)
 input_p = input_p.to_dict()
 vec_file = FileProcess(in_vector)
 words_vector, vsm_index = vec_file.to_vec()
-
 
 methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik', 'jiang']
 
