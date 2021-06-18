@@ -17,8 +17,8 @@ from TFIDF import TFIDF
 
 
 class Weight(object):
-    def __init__(self):
-        pass
+    def __init__(self, patents):
+        self.tfidfSys = TFIDF(patents)
 
     def bm25(self, input_patent_SAO):
         values = input_patent_SAO.values()
@@ -67,6 +67,5 @@ class Weight(object):
 
         return degrees
 
-    def TfIdf(self, patents, ind, SAOlist, ID, TF):
-        sys = TFIDF(patents)
-        return sys.tfidf(ind, SAOlist, ID, TF)
+    def TfIdf(self, ind, SAOlist, ID, TF):
+        return self.tfidfSys.tfidf(ind, SAOlist, ID, TF)

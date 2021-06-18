@@ -12,23 +12,15 @@ import re
 import time
 import numpy as np
 from pandas.core.frame import DataFrame
-from BM25 import BM25
 from FileProcess import FileProcess
 from Formula import Formula
-from sklearn.cluster import KMeans, SpectralClustering
-from pygraph.classes.graph import graph
+from Weight import Weight
 
 in_file = "extraction_method_1.txt"
 in_vector = "vector_en_method_1_SAO_glove_array.txt"
 patent = "english_processed.txt"
 
 print("running SAO.py")
-
-
-
-
-
-
 
 
 # id - {S, O, A lists}
@@ -118,15 +110,15 @@ def format_2(input_patent_SAO):
         patent_label[i] = label
 
     # Kmeans
-    km_labels = KM(vec_dict_all)
+    km_labels = weightSys.KM(vec_dict_all)
 
     # SpectralClustering
-    sc_labels = SC(vec_dict_all)
+    sc_labels = weightSys.SC(vec_dict_all)
 
     # node degree
     degrees = []
     for i in out_dict:
-        degrees.append(SAO_graph(out_dict[i][0], out_dict[i][1], out_dict[i][2]))
+        degrees.append(weightSys.SAOGraph(out_dict[i][0], out_dict[i][1], out_dict[i][2]))
 
     return out_dict, patent_label, word_TF, vec_dict, km_labels, sc_labels, degrees
     # return out_dict, patent_label, word_TF, vec_dict
@@ -213,10 +205,10 @@ def new_all(input_patent_SAO):
     score = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
     for j in S[0]:
         # get TFIDF
-        w1 = tf_idf(j[0], first_SAO, first_ID, TF_count)
-        w2 = tf_idf(j[1], second_SAO, second_ID, TF_count)
+        w1 = weightSys.TfIdf(j[0], first_SAO, first_ID, TF_count)
+        w2 = weightSys.TfIdf(j[1], second_SAO, second_ID, TF_count)
         # get bm25
-        matrix, mean = bm25(input_patent_SAO)
+        matrix, mean = weightSys.bm25(input_patent_SAO)
         # get km weight
         km_weight = 1 if km_labels[j[0]] == km_labels[len(first_SAO[0]) + j[1]] else 0
         # get sc weight
@@ -294,30 +286,6 @@ def new_all(input_patent_SAO):
             for index in range(len(methods)):
                 score[index]['tfidf'] = temp_score[index] * (w1 * w2)
 
-        # for index in range(len(methods)):
-        #     for t in thre:
-        #         if SAO[index][j] > t:
-        #             s = 1.0
-        #         else:
-        #             s = SAO[index][j]
-        #         if str(t) not in score[index].keys():
-        #             score[index][str(t)] = s
-        #         else:
-        #             score[index][str(t)] += s
-        # if label[second_ID][j[1]] == 1:
-        #     for index in range(len(methods)):
-        #         for w in weight:
-        #             if str(w) not in score[index].keys():
-        #                 score[index][str(w)] = w * SAO[index][j]
-        #             else:
-        #                 score[index][str(w)] += w * SAO[index][j]
-        # else:
-        #     for index in range(len(methods)):
-        #         for w in weight:
-        #             if str(w) not in score[index].keys():
-        #                 score[index][str(w)] = (1-w) * SAO[index][j]
-        #             else:
-        #                 score[index][str(w)] += (1-w) * SAO[index][j]
     for index in range(len(methods)):
         for m in weight_m:
             score[index][m] = score[index][m] / len(list(S[0].keys()))
@@ -422,8 +390,7 @@ words_vector, vsm_index = vec_file.to_vec()
 
 methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik', 'jiang']
 
-IDF_count, doc_num = IDF(input_p)
-
+weightSys = Weight(input_p)
 
 print("after data processing")
 new_all_main(input_p)
