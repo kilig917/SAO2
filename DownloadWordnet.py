@@ -1,2 +1,2 @@
-import nltk
-nltk.download('wordnet_ic')
+a = input("enter: ")
+print(a)
