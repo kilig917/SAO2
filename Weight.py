@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/18
-# @LastUpdateTime: 2021/6/18
+# @LastUpdateTime: 2021/6/21
 # @Author: Yingtong Hu
 
 """
@@ -17,12 +17,29 @@ from pygraph.classes.graph import graph
 from TFIDF import TFIDF
 
 
-class Weight(object):
-    def __init__(self, patents):
-        self.tfidfSys = TFIDF(patents)
+class Weight:
+    km_labels = []
+    sc_labels = []
+    graph_degrees = []
+    bm25_matrix = []
+    bm25_mean = 0
+    tfidfSys = None
 
-    def bm25(self, input_patent_SAO):
-        values = input_patent_SAO.values()
+    def __init__(self, patents, input_patent_SAO, vec, SAO):
+        self.patents = patents
+        self.input_patent_SAO = input_patent_SAO
+        self.vec = vec
+        self.SAO = SAO
+
+    def set_up(self):
+        self.km_labels = self.__KMeans_set_up()
+        self.sc_labels = self.__SpectralClustering_set_up()
+        self.graph_degrees = self.__Graph_set_up()
+        self.bm25_matrix, self.bm25_mean = self.__bm25_set_up()
+        self.__tfidf_set_up()
+
+    def __bm25_set_up(self):
+        values = self.input_patent_SAO.values()
         dataProcess = FileProcess("")
         SAOs = dataProcess.to_SAO(list(values)[0])
         test = []
@@ -35,19 +52,25 @@ class Weight(object):
             matrix.append(s.similarity((dataProcess.to_word(i))))
         return matrix, np.mean(matrix)
 
-    def KM(self, vec):
-        cluster = KMeans(n_clusters=2).fit(vec)
+    def __KMeans_set_up(self):
+        cluster = KMeans(n_clusters=2).fit(self.vec)
         return cluster.labels_
 
-    def SC(self, vec):
-        cluster = SpectralClustering(n_clusters=2, assign_labels='discretize').fit(vec)
+    def __SpectralClustering_set_up(self):
+        cluster = SpectralClustering(n_clusters=2, assign_labels='discretize').fit(self.vec)
         return cluster.labels_
 
-    def SAOGraph(self, S, A, O):
+    def __Graph_set_up(self):
+        degrees = []
+        for i in self.SAO:
+            degrees.append(self.__SAOGraph(self.SAO[i][0], self.SAO[i][1], self.SAO[i][2]))
+        return degrees
+
+    @staticmethod
+    def __SAOGraph(S, A, O):
         g = graph()
         g.add_nodes(S)
-        g.add_nodes(A)
-        g.add_nodes(O)
+
         for i in range(len(S)):
             if S[i] != '' and O[i] != '':
                 if A[i] != '':
@@ -60,13 +83,14 @@ class Weight(object):
             elif O[i] != '':
                 if A[i] != '':
                     g.add_edge((A[i], O[i]))
-        degrees = []
+        degrees = np.array([])
         for i in range(len(S)):
-            degrees.append(len(g.neighbors(S[i])) + len(g.neighbors(A[i])) + len(g.neighbors(O[i])))
-        degrees = np.array(degrees)
-        degrees = list(degrees / max(degrees))
+            degrees = np.append(degrees, len(g.neighbors(S[i])) + len(g.neighbors(A[i])) + len(g.neighbors(O[i])))
 
-        return degrees
+        return list(degrees / max(degrees))
 
-    def TfIdf(self, ind, SAOlist, ID, TF):
+    def __tfidf_set_up(self):
+        self.tfidfSys = TFIDF(self.patents)
+
+    def tfidf_(self, ind, SAOlist, ID, TF):
         return self.tfidfSys.tfidf(ind, SAOlist, ID, TF)

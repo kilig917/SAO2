@@ -10,14 +10,14 @@ Process different types of file
 """
 
 
-class FileProcess(object):
+class FileProcess:
     def __init__(self, docName):
         self.docName = docName
 
     def to_dict(self):
         """
         Convert SAOs from txt to dictionary data type
-        {patent ID: [SAO list], ...}
+        {patent ID: SAO string, ...}
         """
         inp = open(self.docName, 'r', encoding='utf-8')
         text_line = inp.readline()

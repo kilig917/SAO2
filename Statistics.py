@@ -12,7 +12,7 @@ Statistic Methods: Mean, Mode, Medium...
 import numpy as np
 
 
-class Statistics(object):
+class Statistics:
     def __init__(self, data):
         self.data = data
 

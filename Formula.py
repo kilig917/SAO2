@@ -17,12 +17,12 @@ from nltk.corpus import wordnet
 from nltk.corpus import wordnet_ic
 
 
-class Formula(object):
-    def __init__(self, SAO1, SAO2, type):
-        if type == 'w':
+class Formula:
+    def __init__(self, SAO1, SAO2, dataType):
+        if dataType == 'w':
             self.set1 = set(SAO1.split(' '))
             self.set2 = set(SAO2.split(' '))
-        elif type == 'v':
+        elif dataType == 'v':
             self.vector1 = np.array(SAO1)
             self.vector2 = np.array(SAO2)
         else:

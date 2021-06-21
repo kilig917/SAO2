@@ -18,7 +18,7 @@ from Formula import Formula
 from Weight import Weight
 
 
-class SAO(object):
+class SAO:
     def __init__(self, SAOExtracted, WordVector):
         self.pair = None
         SAOFile = FileProcess(SAOExtracted)
@@ -27,7 +27,6 @@ class SAO(object):
         self.words_vector, self.vsm_index = vecFile.to_vec()
         self.methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik',
                         'jiang']
-        self.weightSys = Weight(self.SAODict)
 
     # id - {S, O, A lists}
     def format_2(self):
@@ -108,19 +107,7 @@ class SAO(object):
             out_dict[i].append(O)
             patent_label[i] = label
 
-        # Kmeans
-        km_labels = self.weightSys.KM(vec_dict_all)
-
-        # SpectralClustering
-        sc_labels = self.weightSys.SC(vec_dict_all)
-
-        # node degree
-        degrees = []
-        for i in out_dict:
-            degrees.append(self.weightSys.SAOGraph(out_dict[i][0], out_dict[i][1], out_dict[i][2]))
-
-        return out_dict, patent_label, word_TF, vec_dict, km_labels, sc_labels, degrees
-        # return out_dict, patent_label, word_TF, vec_dict
+        return out_dict, patent_label, word_TF, vec_dict, vec_dict_all
 
     def new_all(self):
         # weight = [0.2, 0.5, 0.8]
@@ -129,7 +116,11 @@ class SAO(object):
         print("start calculating.....")
 
         weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
-        cleaned_sao, label, TF_count, vec, km_labels, sc_labels, degrees = self.format_2()
+        cleaned_sao, label, TF_count, vec, vec_dict_all = self.format_2()
+        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao)
+        weightSys.set_up()
+        print(len(weightSys.graph_degrees[1]))
+
         first_ID = next(iter(cleaned_sao))
         first_SAO = cleaned_sao[first_ID]
         cleaned_sao.pop(first_ID)
@@ -227,19 +218,21 @@ class SAO(object):
         t1 = time.time()
         SAO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         score = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao)
+        weightSys.set_up()
         for ii, j in enumerate(S[0]):
             # get TFIDF
-            w1 = self.weightSys.TfIdf(j[0], first_SAO, first_ID, TF_count)
-            w2 = self.weightSys.TfIdf(j[1], second_SAO, second_ID, TF_count)
+            w1 = weightSys.tfidf_(j[0], first_SAO, first_ID, TF_count)
+            w2 = weightSys.tfidf_(j[1], second_SAO, second_ID, TF_count)
             # get bm25
-            matrix, mean = self.weightSys.bm25(self.pair)
+            matrix, mean = weightSys.bm25_matrix, weightSys.bm25_mean
             # get km weight
-            km_weight = 1 if km_labels[j[0]] == km_labels[len(first_SAO[0]) + j[1]] else 0
+            km_weight = 1 if weightSys.km_labels[j[0]] == weightSys.km_labels[len(first_SAO[0]) + j[1]] else 0
             # get sc weight
-            sc_weight = 1 if sc_labels[j[0]] == sc_labels[len(first_SAO[0]) + j[1]] else 0
+            sc_weight = 1 if weightSys.sc_labels[j[0]] == weightSys.sc_labels[len(first_SAO[0]) + j[1]] else 0
             # get graph degrees
-            d1 = degrees[0][j[0]]
-            d2 = degrees[1][j[1]]
+            d1 = weightSys.graph_degrees[0][j[0]]
+            d2 = weightSys.graph_degrees[1][j[1]]
             # get similarity
             if S[0][j] is not False and O[0][j] is not False and SO[0][j] is not False and OS[0][j] is not False:
                 for index in range(len(self.methods)):
@@ -361,3 +354,4 @@ class SAO(object):
                          11: 'Jiang'
                          }, inplace=True)
             data.to_csv("ResultFiles/SAO_mean_" + f + ".csv", encoding='utf_8_sig')
+
