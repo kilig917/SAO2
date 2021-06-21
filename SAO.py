@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
-# @Time: 2021/6/15
+# @CreateTime: 2021/6/15
+# @LastUpdateTime: 2021/6/21
 # @Author: Yingtong Hu
 
 """
@@ -10,8 +11,8 @@ Calculate SAO using string, concept and vector comparison
 
 import re
 import time
-import numpy as np
 from pandas.core.frame import DataFrame
+from Statistics import Statistics
 from FileProcess import FileProcess
 from Formula import Formula
 from Weight import Weight
@@ -127,6 +128,9 @@ def format_2(input_patent_SAO):
 def new_all(input_patent_SAO):
     # weight = [0.2, 0.5, 0.8]
     # thre = [0.2, 0.5, 0.8]
+
+    print("start calculating.....")
+
     weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
     cleaned_sao, label, TF_count, vec, km_labels, sc_labels, degrees = format_2(input_patent_SAO)
     first_ID = next(iter(cleaned_sao))
@@ -140,6 +144,10 @@ def new_all(input_patent_SAO):
     OS = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
     first_SO = [first_SAO[0], first_SAO[2]]
     second_SO = [second_SAO[0], second_SAO[2]]
+    wordComb = {}
+
+    print("calculating S and O....")
+    t1 = time.time()
     for i, l1 in enumerate(first_SO):
         for j, l2 in enumerate(second_SO):
             for k, word1 in enumerate(l1):
@@ -154,7 +162,13 @@ def new_all(input_patent_SAO):
                         if i == 1 and j == 0:
                             OS[0][(k, ind)] = False
                         continue
-                    if (label[first_ID][k] == 1 and label[second_ID][ind] == 1) or (
+                    if word1 == word2:
+                        d = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+                    elif (word1, word2) in wordComb:
+                        d = wordComb[(word1, word2)]
+                    elif (word2, word1) in wordComb:
+                        d = wordComb[(word2, word1)]
+                    elif (label[first_ID][k] == 1 and label[second_ID][ind] == 1) or (
                             label[first_ID][k] == 0 and label[second_ID][ind] == 0):
                         v1 = vec[word1]
                         v2 = vec[word2]
@@ -166,6 +180,7 @@ def new_all(input_patent_SAO):
                             + hierarchyF.hierarchy(word1, word2)
                     else:
                         d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                    wordComb[(word1, word2)] = d
                     if i == 0 and j == 0:
                         for index in range(len(methods)):
                             S[index][(k, ind)] = d[index]
@@ -178,12 +193,20 @@ def new_all(input_patent_SAO):
                     if i == 1 and j == 0:
                         for index in range(len(methods)):
                             OS[index][(k, ind)] = d[index]
-
-    # so os
+    print("SO time: ", time.time() - t1)
+    print("calculating A....")
+    t1 = time.time()
     A = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+    wordComb = {}
     for k, word1 in enumerate(first_SAO[1]):
         for ind, word2 in enumerate(second_SAO[1]):
-            if (label[first_ID][k] == 1 and label[second_ID][ind] == 1) or (
+            if word1 == word2:
+                d = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            elif (word1, word2) in wordComb:
+                d = wordComb[(word1, word2)]
+            elif (word2, word1) in wordComb:
+                d = wordComb[(word2, word1)]
+            elif (label[first_ID][k] == 1 and label[second_ID][ind] == 1) or (
                     label[first_ID][k] == 0 and label[second_ID][ind] == 0):
                 d = []
                 if word2 in word1 or word1 in word2:
@@ -198,12 +221,15 @@ def new_all(input_patent_SAO):
                           vectorF.spearman(), vectorF.arcosine(v1, v2)] + hierarchyF.hierarchy(word1, word2)
             else:
                 d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            wordComb[(word1, word2)] = d
             for index in range(len(methods)):
                 A[index][(k, ind)] = d[index]
-
+    print("A time: ", time.time() - t1)
+    print("calculating weight....")
+    t1 = time.time()
     SAO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
     score = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-    for j in S[0]:
+    for ii, j in enumerate(S[0]):
         # get TFIDF
         w1 = weightSys.TfIdf(j[0], first_SAO, first_ID, TF_count)
         w2 = weightSys.TfIdf(j[1], second_SAO, second_ID, TF_count)
@@ -285,43 +311,11 @@ def new_all(input_patent_SAO):
         else:
             for index in range(len(methods)):
                 score[index]['tfidf'] = temp_score[index] * (w1 * w2)
-
+    print("weight time: ", time.time() - t1)
     for index in range(len(methods)):
         for m in weight_m:
             score[index][m] = score[index][m] / len(list(S[0].keys()))
     return score
-
-
-def result_mean(result):
-    m = []
-    for l in result:
-        m.append(np.mean(l))
-    return m
-
-
-def result_median(result):
-    m = []
-    for l in result:
-        m.append(np.median(l))
-    return m
-
-
-def result_mode(result):
-    m = []
-    for l in result:
-        temp_l = [float(format(i, '.1f')) for i in l]
-        d = {}
-        for i in temp_l:
-            d[i] = temp_l.count(i)
-        m.append(max(d, key=d.get))
-    return m
-
-
-def result_std(result):
-    s = []
-    for l in result:
-        s.append(np.std(l))
-    return s
 
 
 def new_all_main(patent_list):
@@ -335,11 +329,8 @@ def new_all_main(patent_list):
     id_list = []
     for ind, pair in enumerate(patent_list):
         if ind % 500 == 0 and ind != 0:
-            print('------', ind, 'pairs done, total ', len(patent_list), ', ', len(patent_list) - ind, 'left --------')
-        print("processing number", ind + 1, "file, time cost: ", end="")
-        if ind + 1 == 3:
-            break
-        ss = time.time()
+            print('------', format(ind / len(patent_list) * 100, '.2f'), ' done --------')
+
         id_ = list(pair.keys())
         if id_ in id_list or len(id_) != 2:
             print('id error!\n')
@@ -354,20 +345,16 @@ def new_all_main(patent_list):
             for key in score[i].keys():
                 file[key][i].append(score[i][key])
 
-        ee = time.time()
-        print(ee - ss)
+        break
 
     compare += ["", "mean", "median", "mode", "standard deviation"]
     for f in file:
-        r = file[f]
-        mean = result_mean(r)
-        median = result_median(r)
-        mode = result_mode(r)
-        std = result_std(r)
+        StatSys = Statistics(file[f])
+        mean, median, mode, std = StatSys.mean(), StatSys.median(), StatSys.mode(), StatSys.std()
 
-        for i in range(len(r)):
-            r[i] += ["", mean[i], median[i], mode[i], std[i]]
-        data = [compare, target + [""]] + r
+        for i in range(len(file[f])):
+            file[f][i] += ["", mean[i], median[i], mode[i], std[i]]
+        data = [compare, target + [""]] + file[f]
 
         data = DataFrame(data)
         data = data.T
@@ -376,23 +363,23 @@ def new_all_main(patent_list):
                      7: 'Spearman', 8: 'Arccos', 9: 'Lin', 10: 'Resnik',
                      11: 'Jiang'
                      }, inplace=True)
-        data.to_csv("new_files/SAO_mean_" + f + ".csv", encoding='utf_8_sig')
+        data.to_csv("ResultFiles/SAO_mean_" + f + ".csv", encoding='utf_8_sig')
 
 
 # calculate time consumption
 start = time.time()
 
 # file process
-input_p = FileProcess(in_file)
-input_p = input_p.to_dict()
-vec_file = FileProcess(in_vector)
-words_vector, vsm_index = vec_file.to_vec()
+SAOFile = FileProcess(in_file)
+SAODict = SAOFile.to_dict()
+vecFile = FileProcess(in_vector)
+words_vector, vsm_index = vecFile.to_vec()
 
 methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik', 'jiang']
 
-weightSys = Weight(input_p)
+weightSys = Weight(SAODict)
 
 print("after data processing")
-new_all_main(input_p)
+new_all_main(SAODict)
 end = time.time()
 print("total time: ", end - start)
