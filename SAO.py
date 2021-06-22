@@ -18,8 +18,20 @@ from Formula import Formula
 from Weight import Weight
 
 
+def SAOLabel(phrase):
+    if phrase[:3] == '^_^':
+        updatePhrase = phrase[3:]
+        return 1, updatePhrase
+    return 0, phrase
+
+
+def splitSAO(phrase):
+    updatePhrase = phrase.split(', ')
+    return updatePhrase[0][1:], updatePhrase[1], updatePhrase[2][:-1]
+
+
 class SAO:
-    def __init__(self, SAOExtracted, WordVector):
+    def __init__(self, SAOExtracted, WordVector, vectorLen):
         self.pair = None
         SAOFile = FileProcess(SAOExtracted)
         self.SAODict = SAOFile.to_dict()
@@ -27,6 +39,7 @@ class SAO:
         self.words_vector, self.vsm_index = vecFile.to_vec()
         self.methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik',
                         'jiang']
+        self.vectorLen = vectorLen
 
     # id - {S, O, A lists}
     def format_2(self):
@@ -34,80 +47,50 @@ class SAO:
         vec_dict_all = []
         for i in self.pair:
             word_TF[i], label = {}, {}
-            out_dict[i], vec_dict[i] = [], []
+            vec_dict[i] = []
             text = re.split(';', self.pair[i])
             S, A, O = [], [], []
             for n, j in enumerate(text):
 
-                if j[:3] == '^_^':
-                    j = j[3:]
-                    label[n] = 1
-                else:
-                    label[n] = 0
-                # split SAO
-                SAO = j.split(', ')
-                S.append(SAO[0][1:])
-                A.append(SAO[1])
-                O.append(SAO[2][:-1])
-                word = (SAO[0][1:], SAO[1], SAO[2][:-1])
+                label[n], j = self.SAOLabel(j)
+                s, a, o = self.splitSAO(j)
+                S.append(s)
+                A.append(a)
+                O.append(o)
 
-                if SAO[0][1:] == '':
-                    vS = [0.0] * 300
-                else:
-                    temp_wordS = SAO[0][1:].split(' ')
-                    vS = self.words_vector[temp_wordS[0]]
-                    if len(temp_wordS) > 1:
-                        for t1 in temp_wordS[1:]:
-                            if t1 != '':
-                                vS = [vS[t] + self.words_vector[t1][t] for t in range(300)]
-                if word[0] not in vec_dict.keys():
-                    vec_dict[word[0]] = vS
+                if s not in vec_dict.keys():
+                    vec_dict[s] = self.__vector(s)
 
-                if SAO[1] == '':
-                    vA = [0.0] * 300
-                else:
-                    temp_wordA = SAO[1].split(' ')
-                    vA = self.words_vector[temp_wordA[0]]
-                    if len(temp_wordA) > 1:
-                        for t2 in temp_wordA[1:]:
-                            if t2 != "":
-                                vA = [vA[t] + self.words_vector[t2][t] for t in range(300)]
-                if word[1] not in vec_dict.keys():
-                    vec_dict[word[1]] = vA
+                if a not in vec_dict.keys():
+                    vec_dict[a] = self.__vector(a)
 
-                if SAO[2][:-1] == '':
-                    vO = [0.0] * 300
-                else:
-                    temp_wordO = SAO[2][:-1].split(' ')
-                    vO = self.words_vector[temp_wordO[0]]
-                    if len(temp_wordO) > 1:
-                        for t2 in temp_wordO[1:]:
-                            if t2 != "":
-                                vO = [vO[t] + self.words_vector[t2][t] for t in range(300)]
-                if word[2] not in vec_dict.keys():
-                    vec_dict[word[2]] = vO
+                if o not in vec_dict.keys():
+                    vec_dict[o] = self.__vector(o)
 
-                if vS is not None and vO is not None:
-                    v = [vS[t] + vA[t] + vO[t] for t in range(300)]
-                elif vS is not None:
-                    v = [vS[t] + vA[t] for t in range(300)]
-                elif vO is not None:
-                    v = [vA[t] + vO[t] for t in range(300)]
-                else:
-                    v = vA
+                v = [vec_dict[s][t] + vec_dict[a][t] + vec_dict[o][t] for t in range(self.vectorLen)]
                 vec_dict_all.append(v)
 
                 # TF
-                if word in word_TF[i]:
-                    word_TF[i][word] += 1
+                if (s, a, o) in word_TF[i]:
+                    word_TF[i][(s, a, o)] += 1
                 else:
-                    word_TF[i][word] = 1
-            out_dict[i].append(S)
-            out_dict[i].append(A)
-            out_dict[i].append(O)
+                    word_TF[i][(s, a, o)] = 1
+
+            out_dict[i] = [S, A, O]
             patent_label[i] = label
 
         return out_dict, patent_label, word_TF, vec_dict, vec_dict_all
+
+    def __vector(self, word):
+        if word != '':
+            temp_wordS = word.split(' ')
+            v = self.words_vector[temp_wordS[0]]
+            if len(temp_wordS) > 1:
+                for t1 in temp_wordS[1:]:
+                    if t1 != '':
+                        v = [v[t] + self.words_vector[t1][t] for t in range(self.vectorLen)]
+            return v
+        return [0.0] * self.vectorLen
 
     def new_all(self):
         # weight = [0.2, 0.5, 0.8]
@@ -266,7 +249,8 @@ class SAO:
             file[w] = [[], [], [], [], [], [], [], [], [], []]
         compare, target, id_list = [], [], []
         for ind, self.pair in enumerate(self.SAODict):
-            print('------ #' + str(ind + 1) + ' ----- ', format(ind / len(self.SAODict) * 100, '.2f'), '% done --------')
+            print('------ #' + str(ind + 1) + ' ----- ', format(ind / len(self.SAODict) * 100, '.2f'),
+                  '% done --------')
 
             id_ = list(self.pair.keys())
             if id_ in id_list or len(id_) != 2:
@@ -302,4 +286,3 @@ class SAO:
                          11: 'Jiang'
                          }, inplace=True)
             data.to_csv("ResultFiles/test" + f + ".csv", encoding='utf_8_sig')
-

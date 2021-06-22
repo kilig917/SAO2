@@ -19,6 +19,7 @@ from SAO import SAO
 
 SAOExtracted = 'testSAO.txt'
 WordVector = 'vector_en_method_1_SAO_glove_array.txt'
+vectorLen = 300
 
-SAOSys = SAO(SAOExtracted, WordVector)
+SAOSys = SAO(SAOExtracted, WordVector, vectorLen)
 SAOSys.main()
