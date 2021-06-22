@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/15
-# @LastUpdateTime: 2021/6/21
+# @LastUpdateTime: 2021/6/22
 # @Author: Yingtong Hu
 
 """
@@ -117,7 +117,7 @@ class SAO:
 
         weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
         cleaned_sao, label, TF_count, vec, vec_dict_all = self.format_2()
-        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao)
+        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao, self.methods)
         weightSys.set_up()
 
         first_ID = next(iter(cleaned_sao))
@@ -218,18 +218,6 @@ class SAO:
         SAO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         score = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         for ii, j in enumerate(S[0]):
-            # get TFIDF
-            w1 = weightSys.tfidf_(j[0], first_SAO, first_ID, TF_count)
-            w2 = weightSys.tfidf_(j[1], second_SAO, second_ID, TF_count)
-            # get bm25
-            matrix, mean = weightSys.bm25_matrix, weightSys.bm25_mean
-            # get km weight
-            km_weight = 1 if weightSys.km_labels[j[0]] == weightSys.km_labels[len(first_SAO[0]) + j[1]] else 0
-            # get sc weight
-            sc_weight = 1 if weightSys.sc_labels[j[0]] == weightSys.sc_labels[len(first_SAO[0]) + j[1]] else 0
-            # get graph degrees
-            d1 = weightSys.graph_degrees[0][j[0]]
-            d2 = weightSys.graph_degrees[1][j[1]]
             # get similarity
             if S[0][j] is not False and O[0][j] is not False and SO[0][j] is not False and OS[0][j] is not False:
                 for index in range(len(self.methods)):
@@ -251,54 +239,20 @@ class SAO:
                 temp_score.append(SAO[index][j])
 
             # bm25
-            if matrix[j[1]][j[0]] > mean:
-                if 'bm25' in score[0].keys():
-                    for index in range(len(self.methods)):
-                        score[index]['bm25'] += SAO[index][j]
-                else:
-                    for index in range(len(self.methods)):
-                        score[index]['bm25'] = SAO[index][j]
+            score = weightSys.bm25(j, SAO, score)
+
             # km
-            if km_weight == 1:
-                km_score = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-            else:
-                km_score = temp_score
-            if 'km' in score[0].keys():
-                for index in range(len(self.methods)):
-                    score[index]['km'] += km_score[index]
-            else:
-                for index in range(len(self.methods)):
-                    score[index]['km'] = km_score[index]
+            score = weightSys.KMeans(j, first_SAO, temp_score, score)
 
             # sc
-            if sc_weight == 1:
-                sc_score = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-            else:
-                sc_score = temp_score
-            if 'sc' in score[0].keys():
-                for index in range(len(self.methods)):
-                    score[index]['sc'] += sc_score[index]
-            else:
-                for index in range(len(self.methods)):
-                    score[index]['sc'] = sc_score[index]
+            score = weightSys.SpectralClustering(j, first_SAO, temp_score, score)
 
             # graph
-            if 'graph' in score[0].keys():
-                for index in range(len(self.methods)):
-                    score[index]['graph'] += temp_score[
-                                                 index] * (d1 + d2) / 2
-            else:
-                for index in range(len(self.methods)):
-                    score[index]['graph'] = temp_score[
-                                                index] * (d1 + d2) / 2
+            score = weightSys.Graph(j, temp_score, score)
 
             # tfidf
-            if 'tfidf' in score[0].keys():
-                for index in range(len(self.methods)):
-                    score[index]['tfidf'] += temp_score[index] * (w1 * w2)
-            else:
-                for index in range(len(self.methods)):
-                    score[index]['tfidf'] = temp_score[index] * (w1 * w2)
+            score = weightSys.tfidf(j, first_SAO, second_SAO, first_ID, second_ID, TF_count, temp_score, score)
+
         print("weight time: ", time.time() - t1)
         for index in range(len(self.methods)):
             for m in weight_m:
@@ -306,14 +260,11 @@ class SAO:
         return score
 
     def main(self):
-        # weight = [0.2, 0.5, 0.8]
         weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
         file = {}
         for w in weight_m:
             file[w] = [[], [], [], [], [], [], [], [], [], []]
-        compare = []
-        target = []
-        id_list = []
+        compare, target, id_list = [], [], []
         for ind, self.pair in enumerate(self.SAODict):
             print('------ #' + str(ind + 1) + ' ----- ', format(ind / len(self.SAODict) * 100, '.2f'), '% done --------')
 
@@ -350,5 +301,5 @@ class SAO:
                          7: 'Spearman', 8: 'Arccos', 9: 'Lin', 10: 'Resnik',
                          11: 'Jiang'
                          }, inplace=True)
-            data.to_csv("ResultFiles/SAO_mean_" + f + ".csv", encoding='utf_8_sig')
+            data.to_csv("ResultFiles/test" + f + ".csv", encoding='utf_8_sig')
 

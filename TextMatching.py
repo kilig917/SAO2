@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/21
-# @LastUpdateTime: 2021/6/21
+# @LastUpdateTime: 2021/6/22
 # @Author: Yingtong Hu
 
 """
@@ -14,8 +14,11 @@ from SAO import SAO
 
 # Get input: extraction_method_1.txt, vector_en_method_1_SAO_glove_array.txt
 # testSAO.txt
-SAOExtracted = input("Please Enter the Extracted SAO file: ")
-WordVector = input("Please Enter the vector file: ")
+# SAOExtracted = input("Please Enter the Extracted SAO file: ")
+# WordVector = input("Please Enter the vector file: ")
+
+SAOExtracted = 'testSAO.txt'
+WordVector = 'vector_en_method_1_SAO_glove_array.txt'
 
 SAOSys = SAO(SAOExtracted, WordVector)
 SAOSys.main()

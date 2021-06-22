@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/18
-# @LastUpdateTime: 2021/6/18
+# @LastUpdateTime: 2021/6/22
 # @Author: Yingtong Hu
 
 """
@@ -17,7 +17,7 @@ class FileProcess:
     def to_dict(self):
         """
         Convert SAOs from txt to dictionary data type
-        {patent ID: SAO string, ...}
+        [{patent ID1: SAO string, patent ID2: SAO string}, {}...]
         """
         inp = open(self.docName, 'r', encoding='utf-8')
         text_line = inp.readline()
@@ -59,20 +59,5 @@ class FileProcess:
             line = f.readline()
         return vector, vsm_ind
 
-    def to_SAO(self, sentence):
-        sentence = sentence.replace('^_^', '').replace(';', '')
-        words = sentence.split(')')
-        if '' in words:
-            words.remove('')
-        for i in range(len(words)):
-            words[i] += ')'
-        return words
 
-    def to_word(self, SAO):
-        word = SAO.split(', ')
-        for i in range(len(word)):
-            word[i] = word[i].replace('(', '').replace(')', '')
-        if '' in word:
-            word.remove('')
-        return word
 
