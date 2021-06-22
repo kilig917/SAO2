@@ -119,7 +119,6 @@ class SAO:
         cleaned_sao, label, TF_count, vec, vec_dict_all = self.format_2()
         weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao)
         weightSys.set_up()
-        print(len(weightSys.graph_degrees[1]))
 
         first_ID = next(iter(cleaned_sao))
         first_SAO = cleaned_sao[first_ID]
@@ -218,8 +217,6 @@ class SAO:
         t1 = time.time()
         SAO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         score = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao)
-        weightSys.set_up()
         for ii, j in enumerate(S[0]):
             # get TFIDF
             w1 = weightSys.tfidf_(j[0], first_SAO, first_ID, TF_count)

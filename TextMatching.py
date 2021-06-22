@@ -13,6 +13,7 @@ from SAO import SAO
 
 
 # Get input: extraction_method_1.txt, vector_en_method_1_SAO_glove_array.txt
+# testSAO.txt
 SAOExtracted = input("Please Enter the Extracted SAO file: ")
 WordVector = input("Please Enter the vector file: ")
 

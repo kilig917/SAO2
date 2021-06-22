@@ -69,20 +69,17 @@ class Weight:
     @staticmethod
     def __SAOGraph(S, A, O):
         g = graph()
-        g.add_nodes(S)
+        g.add_nodes(S+A+O)
 
         for i in range(len(S)):
-            if S[i] != '' and O[i] != '':
-                if A[i] != '':
-                    g.add_edge((S[i], A[i]))
-                    g.add_edge((A[i], O[i]))
-                    g.add_edge((S[i], O[i]))
-            elif S[i] != '':
-                if A[i] != '':
-                    g.add_edge((S[i], A[i]))
-            elif O[i] != '':
-                if A[i] != '':
-                    g.add_edge((A[i], O[i]))
+            if S[i] != '' and O[i] != '' and A[i] != '':
+                g.add_edge((S[i], A[i]))
+                g.add_edge((A[i], O[i]))
+                g.add_edge((S[i], O[i]))
+            elif S[i] != '' and A[i] != '':
+                g.add_edge((S[i], A[i]))
+            elif O[i] != '' and A[i] != '':
+                g.add_edge((A[i], O[i]))
         degrees = np.array([])
         for i in range(len(S)):
             degrees = np.append(degrees, len(g.neighbors(S[i])) + len(g.neighbors(A[i])) + len(g.neighbors(O[i])))
