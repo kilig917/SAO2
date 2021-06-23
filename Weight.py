@@ -174,11 +174,10 @@ class Weight:
         :return: updated similarity_w_weight
         """
         if self.bm25_matrix[SAO_index[1]][SAO_index[0]] > self.bm25_mean:
-            if 'bm25' in similarity_w_weight[0].keys():
-                for index in range(len(self.methods)):
+            for index in range(len(self.methods)):
+                if 'bm25' in similarity_w_weight[index].keys():
                     similarity_w_weight[index]['bm25'] += similarity[index][SAO_index]
-            else:
-                for index in range(len(self.methods)):
+                else:
                     similarity_w_weight[index]['bm25'] = similarity[index][SAO_index]
         return similarity_w_weight
 

@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/21
-# @LastUpdateTime: 2021/6/22
+# @LastUpdateTime: 2021/6/23
 # @Author: Yingtong Hu
 
 """
@@ -21,5 +21,5 @@ SAOExtracted = 'testSAO.txt'
 WordVector = 'vector_en_method_1_SAO_glove_array.txt'
 vectorLen = 300
 
-SAOSys = SAO(SAOExtracted, WordVector, vectorLen)
+SAOSys = SAO(SAOExtracted, WordVector, vectorLen, 1)
 SAOSys.main()

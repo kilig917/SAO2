@@ -19,6 +19,7 @@ from Weight import Weight
 
 sourceID = ""
 targetID = ""
+weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
 
 
 def SAOLabel(phrase):
@@ -34,15 +35,18 @@ def splitSAO(phrase):
 
 
 class SAO:
-    def __init__(self, SAOExtracted, WordVector, vectorLen):
+    def __init__(self, SAOExtracted, WordVector, vectorLen, ifWeight):
         self.pair = None
         FileSys = FileProcess(extractFile=SAOExtracted, vectorFile=WordVector)
         self.words_vector, self.vsm_index = FileSys.to_vec()
         self.SAODict = FileSys.to_dict()
+        self.ifWeight = ifWeight
         self.methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik',
                         'jiang']
         self.vectorLen = vectorLen
-        self.wordComb, self.label, self.phraseVector = {}, {}, {}
+        self.wordComb, self.label, self.phraseVector, self.simSnO = {}, {}, {}, {}
+        self.weightScore = {}
+        self.score = []
 
     # id - {S, O, A lists}
     def format_2(self):
@@ -100,20 +104,18 @@ class SAO:
         print("start calculating.....")
         global sourceID, targetID
 
-        weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
         cleaned_sao, TF_count, vec_dict_all = self.format_2()
-        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao, self.methods)
-        weightSys.set_up()
 
-        sourceID = next(iter(cleaned_sao))
+        sourceID = list(cleaned_sao.keys())[0]
         first_SAO = cleaned_sao[sourceID]
-        cleaned_sao.pop(sourceID)
-        targetID = next(iter(cleaned_sao))
+        targetID = list(cleaned_sao.keys())[1]
         second_SAO = cleaned_sao[targetID]
-        S = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        O = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        SO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        OS = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+
+        # S: 0, 0   O: 1, 1     SO: 0, 1    OS: 1, 0
+        self.simSnO = {(0, 0): [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+                       (1, 1): [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+                       (1, 0): [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+                       (0, 1): [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]}
         first_SO = [first_SAO[0], first_SAO[2]]
         second_SO = [second_SAO[0], second_SAO[2]]
 
@@ -124,28 +126,11 @@ class SAO:
                 for ind1, word1 in enumerate(l1):
                     for ind2, word2 in enumerate(l2):
                         if word2 == '' or word1 == '':
-                            if i == 0 and j == 0:
-                                S[0][(ind1, ind2)] = False
-                            if i == 1 and j == 1:
-                                O[0][(ind1, ind2)] = False
-                            if i == 0 and j == 1:
-                                SO[0][(ind1, ind2)] = False
-                            if i == 1 and j == 0:
-                                OS[0][(ind1, ind2)] = False
+                            self.simSnO[(i, j)][0][(ind1, ind2)] = False
                             continue
                         d = self.similarity_SAO(word1, word2, ind1=ind1, ind2=ind2)
-                        if i == 0 and j == 0:
-                            for index in range(len(self.methods)):
-                                S[index][(ind1, ind2)] = d[index]
-                        if i == 1 and j == 1:
-                            for index in range(len(self.methods)):
-                                O[index][(ind1, ind2)] = d[index]
-                        if i == 0 and j == 1:
-                            for index in range(len(self.methods)):
-                                SO[index][(ind1, ind2)] = d[index]
-                        if i == 1 and j == 0:
-                            for index in range(len(self.methods)):
-                                OS[index][(ind1, ind2)] = d[index]
+                        for index in range(len(self.methods)):
+                            self.simSnO[(i, j)][index][(ind1, ind2)] = d[index]
         print("SO time: ", time.time() - t1)
         print("calculating A....")
         t1 = time.time()
@@ -158,49 +143,11 @@ class SAO:
         print("A time: ", time.time() - t1)
         print("calculating weight....")
         t1 = time.time()
-        SAO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        score = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        for ii, j in enumerate(S[0]):
-            # get similarity
-            if S[0][j] is not False and O[0][j] is not False and SO[0][j] is not False and OS[0][j] is not False:
-                for index in range(len(self.methods)):
-                    temp1 = S[index][j] + O[index][j]
-                    temp2 = SO[index][j] + OS[index][j]
-                    SAO[index][j] = 0.6 * ((max(temp1, temp2)) / 2.0) + 0.4 * A[index][j]
-            elif S[0][j] is not False:
-                for index in range(len(self.methods)):
-                    SAO[index][j] = 0.5 * S[index][j] + 0.5 * A[index][j]
-            elif O[0][j] is not False:
-                for index in range(len(self.methods)):
-                    SAO[index][j] = 0.5 * A[index][j] + 0.5 * O[index][j]
-            else:
-                for index in range(len(self.methods)):
-                    SAO[index][j] = A[index][j]
 
-            temp_score = []
-            for index in range(len(self.methods)):
-                temp_score.append(SAO[index][j])
+        SAOSim = self.get_all_sim(A)
 
-            # bm25
-            score = weightSys.bm25(j, SAO, score)
-
-            # km
-            score = weightSys.KMeans(j, first_SAO, temp_score, score)
-
-            # sc
-            score = weightSys.SpectralClustering(j, first_SAO, temp_score, score)
-
-            # graph
-            score = weightSys.Graph(j, temp_score, score)
-
-            # tfidf
-            score = weightSys.tfidf(j, first_SAO, second_SAO, TF_count, temp_score, score)
-
-        print("weight time: ", time.time() - t1)
-        for index in range(len(self.methods)):
-            for m in weight_m:
-                score[index][m] = score[index][m] / len(list(S[0].keys()))
-        return score
+        if self.ifWeight:
+            self.get_sim_w_weight(SAOSim, vec_dict_all, cleaned_sao, first_SAO, second_SAO, TF_count)
 
     def similarity_SAO(self, word1, word2, ind1, ind2, wordType=""):
         d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -222,8 +169,55 @@ class SAO:
         return [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(),
                 vectorF.pearson(), vectorF.spearman(), vectorF.arcosine(v1, v2)] + conceptF.hierarchy(word1, word2)
 
+    def get_all_sim(self, A):
+        SAOSim = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+        self.score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        for j in self.simSnO[(0, 0)][0]:
+            for index in range(len(self.methods)):
+                if self.simSnO[(0, 0)][0][j] is not False and self.simSnO[(1, 1)][0][j] is not False \
+                        and self.simSnO[(0, 1)][0][j] is not False and self.simSnO[(1, 0)][0][j] is not False:
+                    temp1 = self.simSnO[(0, 0)][index][j] + self.simSnO[(1, 1)][index][j]
+                    temp2 = self.simSnO[(0, 1)][index][j] + self.simSnO[(1, 0)][index][j]
+                    SAOSim[index][j] = 0.6 * ((max(temp1, temp2)) / 2.0) + 0.4 * A[index][j]
+                elif self.simSnO[(0, 0)][0][j] is not False:
+                    SAOSim[index][j] = 0.5 * self.simSnO[(0, 0)][index][j] + 0.5 * A[index][j]
+                elif self.simSnO[(1, 1)][0][j] is not False:
+                    SAOSim[index][j] = 0.5 * A[index][j] + 0.5 * self.simSnO[(1, 1)][index][j]
+                else:
+                    SAOSim[index][j] = A[index][j]
+            for index in range(len(self.methods)):
+                self.score[index] += SAOSim[index][j]
+        return SAOSim
+
+    def get_sim_w_weight(self, SAOSim, vec_dict_all, cleaned_sao, first_SAO, second_SAO, TF_count):
+        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao, self.methods)
+        weightSys.set_up()
+        self.weightScore = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+        for j in self.simSnO[(0, 0)][0]:
+            temp_score = []
+            for index in range(len(self.methods)):
+                temp_score.append(SAOSim[index][j])
+
+            # bm25
+            self.weightScore = weightSys.bm25(j, SAOSim, self.weightScore)
+
+            # km
+            self.weightScore = weightSys.KMeans(j, first_SAO, temp_score, self.weightScore)
+
+            # sc
+            self.weightScore = weightSys.SpectralClustering(j, first_SAO, temp_score, self.weightScore)
+
+            # graph
+            self.weightScore = weightSys.Graph(j, temp_score, self.weightScore)
+
+            # tfidf
+            self.weightScore = weightSys.tfidf(j, first_SAO, second_SAO, TF_count, temp_score, self.weightScore)
+
+        for index in range(len(self.methods)):
+            for m in weight_m:
+                self.weightScore[index][m] = self.weightScore[index][m] / len(list(self.simSnO[(0, 0)][0].keys()))
+
     def main(self):
-        weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
         file = {}
         for w in weight_m:
             file[w] = [[], [], [], [], [], [], [], [], [], []]
@@ -240,11 +234,11 @@ class SAO:
             compare.append(id_[0])
             target.append(id_[1])
 
-            score = self.new_all()
+            self.new_all()
 
-            for i in range(len(score)):
-                for key in score[i].keys():
-                    file[key][i].append(score[i][key])
+            for i in range(len(self.weightScore)):
+                for key in self.weightScore[i].keys():
+                    file[key][i].append(self.weightScore[i][key])
 
             break
 
