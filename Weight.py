@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/18
-# @LastUpdateTime: 2021/6/22
+# @LastUpdateTime: 2021/6/23
 # @Author: Yingtong Hu
 
 """
@@ -14,7 +14,7 @@ import re
 from BM25 import BM25
 from sklearn.cluster import KMeans, SpectralClustering
 from pygraph.classes.graph import graph
-from SAO import SAOLabel, splitSAO
+import SAO
 
 
 class Weight:
@@ -55,8 +55,8 @@ class Weight:
         values = self.input_patent_SAO.values()
         SAOs = self.__to_SAO(list(values)[0])
         test = []
-        for SAO in SAOs:
-            test.append(self.__to_word(SAO))
+        for SAOComb in SAOs:
+            test.append(self.__to_word(SAOComb))
         s = BM25(test)
         input_s = self.__to_SAO(list(values)[1])
         matrix = []
@@ -80,13 +80,13 @@ class Weight:
         return SAOs
 
     @staticmethod
-    def __to_word(SAO):
+    def __to_word(SAOComb):
         """
         For BM25 calculation
         split SAOs to single word combination
         eg. (aaa, bbb, ccc) --> [aaa, bbb, ccc]
         """
-        word = SAO.split(', ')
+        word = SAOComb.split(', ')
         for i in range(len(word)):
             word[i] = word[i].replace('(', '').replace(')', '')
         if '' in word:
@@ -155,8 +155,9 @@ class Weight:
                     patent_ID.append(i)
                 text = re.split(';', input_patent_SAO[i])
                 for n, j in enumerate(text):
-                    j = SAOLabel(j)
-                    s, a, o = splitSAO(j)
+                    j = SAO.SAOLabel(j)
+
+                    s, a, o = SAO.splitSAO(j)
                     # IDF
                     if (s, a, o) in word_IDF:
                         if i not in word_IDF[(s, a, o)]:
@@ -244,21 +245,19 @@ class Weight:
                                             index] * (d1 + d2) / 2
         return similarity_w_weight
 
-    def tfidf(self, SAO_index, source, target, sourceID, targetID, TF_count, similarity, similarity_w_weight):
+    def tfidf(self, SAO_index, source, target, TF_count, similarity, similarity_w_weight):
         """
         calculate TFIDF weight
         :param SAO_index: current SAO pair
         :param source: source patent SAO list
         :param target: target patent SAO list
-        :param sourceID: source patent ID
-        :param targetID: target patent ID
         :param TF_count: total TF count
         :param similarity: raw similarity
         :param similarity_w_weight: similarity with weight added
         :return: updated similarity_w_weight
         """
-        w1 = self.__get_tfidf_val(SAO_index[0], source, sourceID, TF_count)
-        w2 = self.__get_tfidf_val(SAO_index[1], target, targetID, TF_count)
+        w1 = self.__get_tfidf_val(SAO_index[0], source, SAO.sourceID, TF_count)
+        w2 = self.__get_tfidf_val(SAO_index[1], target, SAO.targetID, TF_count)
         if 'tfidf' in similarity_w_weight[0].keys():
             for index in range(len(self.methods)):
                 similarity_w_weight[index]['tfidf'] += similarity[index] * (w1 * w2)

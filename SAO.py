@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/15
-# @LastUpdateTime: 2021/6/22
+# @LastUpdateTime: 2021/6/23
 # @Author: Yingtong Hu
 
 """
@@ -16,6 +16,9 @@ from Statistics import Statistics
 from FileProcess import FileProcess
 from Formula import Formula
 from Weight import Weight
+
+sourceID = ""
+targetID = ""
 
 
 def SAOLabel(phrase):
@@ -33,41 +36,42 @@ def splitSAO(phrase):
 class SAO:
     def __init__(self, SAOExtracted, WordVector, vectorLen):
         self.pair = None
-        SAOFile = FileProcess(SAOExtracted)
-        self.SAODict = SAOFile.to_dict()
-        vecFile = FileProcess(WordVector)
-        self.words_vector, self.vsm_index = vecFile.to_vec()
+        FileSys = FileProcess(extractFile=SAOExtracted, vectorFile=WordVector)
+        self.words_vector, self.vsm_index = FileSys.to_vec()
+        self.SAODict = FileSys.to_dict()
         self.methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik',
                         'jiang']
         self.vectorLen = vectorLen
+        self.wordComb, self.label, self.phraseVector = {}, {}, {}
 
     # id - {S, O, A lists}
     def format_2(self):
-        out_dict, patent_label, word_TF, vec_dict = {}, {}, {}, {}  # word_TF: patent_id - word - count
+        out_dict, self.label, word_TF, self.phraseVector = {}, {}, {}, {}  # word_TF: patent_id - word - count
         vec_dict_all = []
         for i in self.pair:
             word_TF[i], label = {}, {}
-            vec_dict[i] = []
+            self.phraseVector[i] = []
             text = re.split(';', self.pair[i])
             S, A, O = [], [], []
             for n, j in enumerate(text):
 
-                label[n], j = self.SAOLabel(j)
-                s, a, o = self.splitSAO(j)
+                label[n], j = SAOLabel(j)
+                s, a, o = splitSAO(j)
                 S.append(s)
                 A.append(a)
                 O.append(o)
 
-                if s not in vec_dict.keys():
-                    vec_dict[s] = self.__vector(s)
+                if s not in self.phraseVector.keys():
+                    self.phraseVector[s] = self.__vector(s)
 
-                if a not in vec_dict.keys():
-                    vec_dict[a] = self.__vector(a)
+                if a not in self.phraseVector.keys():
+                    self.phraseVector[a] = self.__vector(a)
 
-                if o not in vec_dict.keys():
-                    vec_dict[o] = self.__vector(o)
+                if o not in self.phraseVector.keys():
+                    self.phraseVector[o] = self.__vector(o)
 
-                v = [vec_dict[s][t] + vec_dict[a][t] + vec_dict[o][t] for t in range(self.vectorLen)]
+                v = [self.phraseVector[s][t] + self.phraseVector[a][t] + self.phraseVector[o][t] for t in
+                     range(self.vectorLen)]
                 vec_dict_all.append(v)
 
                 # TF
@@ -77,9 +81,9 @@ class SAO:
                     word_TF[i][(s, a, o)] = 1
 
             out_dict[i] = [S, A, O]
-            patent_label[i] = label
+            self.label[i] = label
 
-        return out_dict, patent_label, word_TF, vec_dict, vec_dict_all
+        return out_dict, word_TF, vec_dict_all
 
     def __vector(self, word):
         if word != '':
@@ -93,108 +97,64 @@ class SAO:
         return [0.0] * self.vectorLen
 
     def new_all(self):
-        # weight = [0.2, 0.5, 0.8]
-        # thre = [0.2, 0.5, 0.8]
-
         print("start calculating.....")
+        global sourceID, targetID
 
         weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
-        cleaned_sao, label, TF_count, vec, vec_dict_all = self.format_2()
+        cleaned_sao, TF_count, vec_dict_all = self.format_2()
         weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao, self.methods)
         weightSys.set_up()
 
-        first_ID = next(iter(cleaned_sao))
-        first_SAO = cleaned_sao[first_ID]
-        cleaned_sao.pop(first_ID)
-        second_ID = next(iter(cleaned_sao))
-        second_SAO = cleaned_sao[second_ID]
+        sourceID = next(iter(cleaned_sao))
+        first_SAO = cleaned_sao[sourceID]
+        cleaned_sao.pop(sourceID)
+        targetID = next(iter(cleaned_sao))
+        second_SAO = cleaned_sao[targetID]
         S = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         O = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         SO = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         OS = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         first_SO = [first_SAO[0], first_SAO[2]]
         second_SO = [second_SAO[0], second_SAO[2]]
-        wordComb = {}
 
         print("calculating S and O....")
         t1 = time.time()
         for i, l1 in enumerate(first_SO):
             for j, l2 in enumerate(second_SO):
-                for k, word1 in enumerate(l1):
-                    for ind, word2 in enumerate(l2):
+                for ind1, word1 in enumerate(l1):
+                    for ind2, word2 in enumerate(l2):
                         if word2 == '' or word1 == '':
                             if i == 0 and j == 0:
-                                S[0][(k, ind)] = False
+                                S[0][(ind1, ind2)] = False
                             if i == 1 and j == 1:
-                                O[0][(k, ind)] = False
+                                O[0][(ind1, ind2)] = False
                             if i == 0 and j == 1:
-                                SO[0][(k, ind)] = False
+                                SO[0][(ind1, ind2)] = False
                             if i == 1 and j == 0:
-                                OS[0][(k, ind)] = False
+                                OS[0][(ind1, ind2)] = False
                             continue
-                        if word1 == word2:
-                            d = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-                        elif (word1, word2) in wordComb:
-                            d = wordComb[(word1, word2)]
-                        elif (word2, word1) in wordComb:
-                            d = wordComb[(word2, word1)]
-                        elif (label[first_ID][k] == 1 and label[second_ID][ind] == 1) or (
-                                label[first_ID][k] == 0 and label[second_ID][ind] == 0):
-                            v1 = vec[word1]
-                            v2 = vec[word2]
-                            vectorF = Formula(v1, v2, 'v')
-                            wordF = Formula(word1, word2, 'w')
-                            hierarchyF = Formula(word1, word2, 'h')
-                            d = [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(),
-                                 vectorF.pearson(), vectorF.spearman(), vectorF.arcosine(v1, v2)] \
-                                + hierarchyF.hierarchy(word1, word2)
-                        else:
-                            d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                        wordComb[(word1, word2)] = d
+                        d = self.similarity_SAO(word1, word2, ind1=ind1, ind2=ind2)
                         if i == 0 and j == 0:
                             for index in range(len(self.methods)):
-                                S[index][(k, ind)] = d[index]
+                                S[index][(ind1, ind2)] = d[index]
                         if i == 1 and j == 1:
                             for index in range(len(self.methods)):
-                                O[index][(k, ind)] = d[index]
+                                O[index][(ind1, ind2)] = d[index]
                         if i == 0 and j == 1:
                             for index in range(len(self.methods)):
-                                SO[index][(k, ind)] = d[index]
+                                SO[index][(ind1, ind2)] = d[index]
                         if i == 1 and j == 0:
                             for index in range(len(self.methods)):
-                                OS[index][(k, ind)] = d[index]
+                                OS[index][(ind1, ind2)] = d[index]
         print("SO time: ", time.time() - t1)
         print("calculating A....")
         t1 = time.time()
         A = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
-        wordComb = {}
-        for k, word1 in enumerate(first_SAO[1]):
-            for ind, word2 in enumerate(second_SAO[1]):
-                if word1 == word2:
-                    d = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-                elif (word1, word2) in wordComb:
-                    d = wordComb[(word1, word2)]
-                elif (word2, word1) in wordComb:
-                    d = wordComb[(word2, word1)]
-                elif (label[first_ID][k] == 1 and label[second_ID][ind] == 1) or (
-                        label[first_ID][k] == 0 and label[second_ID][ind] == 0):
-                    d = []
-                    if word2 in word1 or word1 in word2:
-                        d += [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-                    else:
-                        v1 = vec[word1]
-                        v2 = vec[word2]
-                        vectorF = Formula(v1, v2, 'v')
-                        wordF = Formula(word1, word2, 'w')
-                        hierarchyF = Formula(word1, word2, 'h')
-                        d += [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(),
-                              vectorF.pearson(),
-                              vectorF.spearman(), vectorF.arcosine(v1, v2)] + hierarchyF.hierarchy(word1, word2)
-                else:
-                    d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                wordComb[(word1, word2)] = d
+        for ind1, word1 in enumerate(first_SAO[1]):
+            for ind2, word2 in enumerate(second_SAO[1]):
+                d = self.similarity_SAO(word1, word2, ind1, ind2, wordType="a")
                 for index in range(len(self.methods)):
-                    A[index][(k, ind)] = d[index]
+                    A[index][(ind1, ind2)] = d[index]
         print("A time: ", time.time() - t1)
         print("calculating weight....")
         t1 = time.time()
@@ -234,13 +194,33 @@ class SAO:
             score = weightSys.Graph(j, temp_score, score)
 
             # tfidf
-            score = weightSys.tfidf(j, first_SAO, second_SAO, first_ID, second_ID, TF_count, temp_score, score)
+            score = weightSys.tfidf(j, first_SAO, second_SAO, TF_count, temp_score, score)
 
         print("weight time: ", time.time() - t1)
         for index in range(len(self.methods)):
             for m in weight_m:
                 score[index][m] = score[index][m] / len(list(S[0].keys()))
         return score
+
+    def similarity_SAO(self, word1, word2, ind1, ind2, wordType=""):
+        d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        if self.label[sourceID][ind1] == self.label[targetID][ind2]:
+            if (word1 == word2) or (wordType == "a" and (word1 in word2 or word2 in word1)):
+                d = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+            elif (word1, word2) in self.wordComb:
+                d = self.wordComb[(word1, word2)]
+            elif (word2, word1) in self.wordComb:
+                d = self.wordComb[(word2, word1)]
+            else:
+                d = self.similarity_2words(word1, word2)
+        self.wordComb[(word1, word2)] = d
+        return d
+
+    def similarity_2words(self, word1, word2):
+        v1, v2 = self.phraseVector[word1], self.phraseVector[word2]
+        vectorF, wordF, conceptF = Formula(v1, v2, 'v'), Formula(word1, word2, 'w'), Formula(word1, word2, 'h')
+        return [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(),
+                vectorF.pearson(), vectorF.spearman(), vectorF.arcosine(v1, v2)] + conceptF.hierarchy(word1, word2)
 
     def main(self):
         weight_m = ['km', 'sc', 'graph', 'tfidf', 'bm25']
