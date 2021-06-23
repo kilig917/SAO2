@@ -155,8 +155,7 @@ class Weight:
                     patent_ID.append(i)
                 text = re.split(';', input_patent_SAO[i])
                 for n, j in enumerate(text):
-                    j = SAO.SAOLabel(j)
-
+                    j = SAO.SAOLabel(j)[1]
                     s, a, o = SAO.splitSAO(j)
                     # IDF
                     if (s, a, o) in word_IDF:
