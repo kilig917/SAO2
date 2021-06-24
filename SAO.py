@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/15
-# @LastUpdateTime: 2021/6/23
+# @LastUpdateTime: 2021/6/24
 # @Author: Yingtong Hu
 
 """
@@ -11,6 +11,7 @@ Calculate SAO using string, concept and vector comparison
 
 import re
 import time
+import numpy as np
 from pandas.core.frame import DataFrame
 from Statistics import Statistics
 from FileProcess import FileProcess
@@ -36,7 +37,6 @@ def splitSAO(phrase):
 
 class SAO:
     def __init__(self, SAOExtracted, WordVector, vectorLen, ifWeight):
-        self.pair = None
         FileSys = FileProcess(extractFile=SAOExtracted, vectorFile=WordVector)
         self.words_vector, self.vsm_index = FileSys.to_vec()
         self.SAODict = FileSys.to_dict()
@@ -49,13 +49,13 @@ class SAO:
         self.score = []
 
     # id - {S, O, A lists}
-    def format_2(self):
+    def format_2(self, pair):
         out_dict, self.label, word_TF, self.phraseVector = {}, {}, {}, {}  # word_TF: patent_id - word - count
         vec_dict_all = []
-        for i in self.pair:
+        for i in pair:
             word_TF[i], label = {}, {}
             self.phraseVector[i] = []
-            text = re.split(';', self.pair[i])
+            text = re.split(';', pair[i])
             S, A, O = [], [], []
             for n, j in enumerate(text):
 
@@ -100,11 +100,11 @@ class SAO:
             return v
         return [0.0] * self.vectorLen
 
-    def new_all(self):
+    def new_all(self, pair):
         print("start calculating.....")
         global sourceID, targetID
 
-        cleaned_sao, TF_count, vec_dict_all = self.format_2()
+        cleaned_sao, TF_count, vec_dict_all = self.format_2(pair)
 
         sourceID = list(cleaned_sao.keys())[0]
         first_SAO = cleaned_sao[sourceID]
@@ -144,10 +144,12 @@ class SAO:
         print("calculating weight....")
         t1 = time.time()
 
-        SAOSim = self.get_all_sim(A)
+        SAOSim = self.get_SAO_sim(A)
 
         if self.ifWeight:
-            self.get_sim_w_weight(SAOSim, vec_dict_all, cleaned_sao, first_SAO, second_SAO, TF_count)
+            self.get_sim_w_weight(SAOSim, vec_dict_all, cleaned_sao, first_SAO, second_SAO, TF_count, pair)
+
+        return self.get_patent_sim(SAOSim)
 
     def similarity_SAO(self, word1, word2, ind1, ind2, wordType=""):
         d = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -169,7 +171,7 @@ class SAO:
         return [wordF.dice(), wordF.inclusionIndex(), wordF.jaccard(), vectorF.euclidean(),
                 vectorF.pearson(), vectorF.spearman(), vectorF.arcosine(v1, v2)] + conceptF.hierarchy(word1, word2)
 
-    def get_all_sim(self, A):
+    def get_SAO_sim(self, A):
         SAOSim = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         self.score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         for j in self.simSnO[(0, 0)][0]:
@@ -189,8 +191,17 @@ class SAO:
                 self.score[index] += SAOSim[index][j]
         return SAOSim
 
-    def get_sim_w_weight(self, SAOSim, vec_dict_all, cleaned_sao, first_SAO, second_SAO, TF_count):
-        weightSys = Weight(self.SAODict, self.pair, vec_dict_all, cleaned_sao, self.methods)
+    def get_patent_sim(self, SAOSim):
+        score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        for j in self.simSnO[(0, 0)][0]:
+            for index in range(len(self.methods)):
+                score[index] += SAOSim[index][j]
+        for index in range(len(self.methods)):
+            score[index] = score[index] / len(list(self.simSnO[(0, 0)][0].keys()))
+        return score
+
+    def get_sim_w_weight(self, SAOSim, vec_dict_all, cleaned_sao, first_SAO, second_SAO, TF_count, pair):
+        weightSys = Weight(self.SAODict, pair, vec_dict_all, cleaned_sao, self.methods)
         weightSys.set_up()
         self.weightScore = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
         for j in self.simSnO[(0, 0)][0]:
@@ -222,11 +233,11 @@ class SAO:
         for w in weight_m:
             file[w] = [[], [], [], [], [], [], [], [], [], []]
         compare, target, id_list = [], [], []
-        for ind, self.pair in enumerate(self.SAODict):
+        for ind, pair in enumerate(self.SAODict):
             print('------ #' + str(ind + 1) + ' ----- ', format(ind / len(self.SAODict) * 100, '.2f'),
                   '% done --------')
 
-            id_ = list(self.pair.keys())
+            id_ = list(pair.keys())
             if id_ in id_list or len(id_) != 2:
                 print('id error!\n')
                 continue
@@ -234,7 +245,7 @@ class SAO:
             compare.append(id_[0])
             target.append(id_[1])
 
-            self.new_all()
+            self.new_all(pair)
 
             for i in range(len(self.weightScore)):
                 for key in self.weightScore[i].keys():
@@ -260,3 +271,115 @@ class SAO:
                          11: 'Jiang'
                          }, inplace=True)
             data.to_csv("ResultFiles/test" + f + ".csv", encoding='utf_8_sig')
+
+    def MAP_main(self):
+        in_file = "extraction_method_1_100_dic.txt"
+        in_vector = "vector_en_method_1_SAO_glove_array.txt"
+        in_grade = "dataset_eng_knowledge_3_8.txt"
+
+        FileSys = FileProcess(vectorFile=in_vector, gradeFile=in_grade, dataFile=in_file)
+        grade = FileSys.get_grade()
+        relation, all_ID = FileSys.get_data()
+        words_vector, vsm_index = FileSys.to_vec()
+        words_vector[''] = [0.0] * 300
+
+        methods = ['dice', 'inclusion', 'jaccard', 'euclidean', 'pearson', 'spearman', 'arccos', 'Lin', 'resnik',
+                   'jiang']
+        record = {}
+        mean = [[], [], [], [], [], [], [], [], [], []]
+        ncdg = [[], [], [], [], [], [], [], [], [], []]
+        MRR_val = [[], [], [], [], [], [], [], [], [], []]
+        for index, main_ID in enumerate(relation):
+            print('#' + str(index + 1) + ', ' + str(len(relation) - index - 1) + ' left')
+            print("main ID:", main_ID)
+            sim_all = [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+            for ID in all_ID:
+                if ID == main_ID:
+                    continue
+                sim, record = self.calculate(all_ID, ID, main_ID, record)
+                if sim is not None:
+                    for i in range(len(methods)):
+                        sim_all[i][ID] = sim[i]
+
+            # reorder
+            rank = [[], [], [], [], [], [], [], [], [], []]
+            for i in range(len(methods)):
+                while sim_all[i]:
+                    closest_patent = max(sim_all[i], key=sim_all[i].get)
+                    rank[i].append(closest_patent)
+                    sim_all[i].pop(closest_patent)
+            # MAP, MRR
+            targets_rank = [[], [], [], [], [], [], [], [], [], []]
+            for i in range(len(methods)):
+                for ID in relation[main_ID]:
+                    targets_rank[i].append(rank[i].index(ID) + 1)
+                    MRR_val[i].append(1 / (rank[i].index(ID) + 1))
+                targets_rank[i].sort()
+            # NCDG
+            for i in range(len(methods)):
+                ncdg[i].append(self.NDCG(grade, rank[i], main_ID))
+            # calculate mean
+            for i in range(len(methods)):
+                if len(targets_rank[i]) != 0:
+                    sum_ = 0.0
+                    for ind, val in enumerate(targets_rank[i]):
+                        sum_ += (ind + 1) / val
+                    mean[i].append(sum_ / len(relation[main_ID]))
+
+        # calculate MAP and write
+        file = open("MAP_MRR_NDCG_result_6_22_sao.txt", 'a', encoding='utf-8')
+        file.write("--------------MAP result------------\n")
+        for i in range(len(methods)):
+            file.write(methods[i] + ': ')
+            m = np.sum(mean[i]) / len(mean[i])
+            file.write(str(m) + '\n')
+        file.write("\n--------------MRR result------------\n")
+        for i in range(len(methods)):
+            file.write(methods[i] + ': ')
+            m = np.sum(MRR_val[i]) / len(MRR_val[i])
+            file.write(str(m) + '\n')
+        file.write("\n--------------NDCG result------------\n")
+        for i in range(len(methods)):
+            file.write(methods[i] + ': ')
+            m = np.sum(ncdg[i]) / len(ncdg[i])
+            file.write(str(m) + '\n')
+
+    def calculate(self, all_ID, ID, main_ID, record):
+        if (main_ID, ID) in record.keys():
+            sim = record[(main_ID, ID)]
+        elif (ID, main_ID) in record.keys():
+            sim = record[(ID, main_ID)]
+        else:
+            pair = {main_ID: all_ID[main_ID], ID: all_ID[ID]}
+            sim = self.new_all(pair)
+            record[(main_ID, ID)] = sim
+        return sim, record
+
+    def NDCG(self, grade, rank, main_ID):
+        grades = []
+        DCG = []
+        last_dcg = 0.0
+        for i, ID in enumerate(rank):
+            if (main_ID, ID) in grade.keys():
+                gain = grade[(main_ID, ID)]
+            else:
+                gain = grade[(ID, main_ID)]
+            grades.append(gain)
+            dcg = last_dcg + gain * np.log(2) / np.log(1 + (i + 1))
+            DCG.append(dcg)
+            last_dcg = dcg
+        grades.sort(reverse=True)
+        maxDCG = []
+        last_dcg = 0.0
+        for i, g in enumerate(grades):
+            dcg = last_dcg + g * np.log(2) / np.log(1 + (i + 1))
+            maxDCG.append(dcg)
+            last_dcg = dcg
+        NDCG = 0.0
+        for i in range(len(grades)):
+            if maxDCG[i] == 0.0:
+                NDCG += 0.0
+            else:
+                NDCG += DCG[i] / maxDCG[i]
+        NDCG /= len(grades)
+        return NDCG

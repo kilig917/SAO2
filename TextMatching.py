@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 # @CreateTime: 2021/6/21
-# @LastUpdateTime: 2021/6/23
+# @LastUpdateTime: 2021/6/24
 # @Author: Yingtong Hu
 
 """
@@ -23,3 +23,4 @@ vectorLen = 300
 
 SAOSys = SAO(SAOExtracted, WordVector, vectorLen, 1)
 SAOSys.main()
+SAOSys.MAP_main()
